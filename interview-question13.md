@@ -325,4 +325,84 @@ By default, when you run a plan, Terraform performs a state refresh. It checks t
 
 ---
 
+# Next Part
+
+Here is the updated summary of the technical questions, incorporating visual descriptions and code snippets based on the screen share and diagramming (via draw.io) presented during the call.
+
+### Topic 1: Terraform Modular Structure
+
+**Question:** What is a modular structure in Terraform and why do we use it?
+**Answer:** A module is a logical container for grouping related resources that are used together. Using a modular structure provides reusability, consistency, and error reduction.
+
+* **Visual from Screen:** The speaker maps this out in a draw.io diagram, starting with a top-level block titled **"Modular structure"** that branches down into two distinct folders: **"Parent"** and **"Child"**.
+
+**Question:** How are parent and child modules organized in Terraform?
+**Answer:** Child modules act as the base templates for specific resources, while Parent (Root) modules represent specific environments that call the child modules.
+
+* **Visual from Screen:** The diagram illustrates this directory structure clearly:
+* Under the **"Child"** branch, blocks labeled **"Resource group"** and **"Storage account"** are drawn. Inside each of these blocks, the core files are listed: `main.tf`, `variables.tf`, and `outputs.tf`.
+* Under the **"Parent"** branch, environment blocks labeled **"environment-qa"** and **"environment-dev"** are drawn, showing where the child modules are called.
+
+
+
+---
+
+### Topic 2: Terraform Variables
+
+**Question:** What is the difference between `variables.tf` and `terraform.tfvars`?
+**Answer:** `variables.tf` is used to declare variables and optional default values, while `terraform.tfvars` assigns the actual runtime values.
+
+* **Visual from Screen:** In the draw.io diagram, the speaker explicitly writes out both `variables.tf` and `terraform.tfvars` inside the parent environment blocks (e.g., `environment-dev`). This visual placement demonstrates that while variables are declared in the child modules, the specific runtime values (`.tfvars`) are injected at the parent/environment level to maintain reusability.
+
+---
+
+### Topic 3: Terraform Backend (Azure)
+
+**Question:** Why do we use a backend block in Terraform?
+**Answer:** A backend block is used to store the Terraform state file remotely rather than locally, enabling team collaboration, state locking, and versioning.
+
+* **Visual from Screen:** The speaker updates the parent module blocks in the diagram to include a `backend.tf` file, visually indicating that remote state management is handled at the environment level.
+
+**Question:** What are the mandatory arguments required for an Azure storage backend block?
+**Answer:** To configure an Azure backend, specific storage arguments must be provided.
+
+* **Snippet Representation:** Based on the technical requirements discussed, the backend configuration block is structured as follows:
+```hcl
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "<rg-name>"
+    storage_account_name = "<storage-account-name>"
+    container_name       = "<container-name>"
+    key                  = "<state-file-name.tfstate>"
+  }
+}
+
+```
+
+
+
+```
+
+---
+
+### Topic 4: Azure Hierarchy & Access Control (RBAC)
+
+**Question:** Can you explain the basic Azure resource hierarchy?
+**Answer:** The management hierarchy flows from the highest level down to individual resources.
+*   **Visual from Screen:** While explaining this concept, the speaker logically outlines the top-down flow: **Tenant Root Group ➔ Management Groups ➔ Subscriptions ➔ Resource Groups ➔ Resources**.
+
+**Question:** If you have "Contributor" access at the Resource Group level, can you view or access the data inside a Storage Account or log into a Virtual Machine?
+**Answer:** No. "Contributor" access is a control-plane role that allows you to manage the resources themselves, but it does not grant data-plane access to the contents within them.
+*   **Visual from Screen:** The speaker uses the existing **"Storage account"** resource block in the diagram to visually ground the explanation, emphasizing that access to the "container" (the resource block itself) is separate from access to the data stored inside it.
+
+```
+
+---
+
+
+
+
+
+
+
 
