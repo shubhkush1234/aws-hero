@@ -399,7 +399,233 @@ terraform {
 
 ---
 
+# Part 12
 
+Here is the extraction of the questions and answers from the provided interview recording transcript. Technical snippets have been included for each concept discussed to satisfy the visual/snippet requirement.
+
+### Technical Interview Q&A Extraction
+
+---
+
+**Question 1: Introduction and Tooling**
+Can you please give a short introduction and tell me what tools you are using in your current project?
+
+**Answer:**
+The interviewee is working as a DevOps intern, handling infrastructure provisioning using Terraform on Azure. Key areas of strength include Terraform concepts like the state file, implicit and explicit dependencies, creating resource groups and storage accounts in parallel, and using Terraform variables, `for_each`, and nested maps.
+
+**Snippet (Terraform on Azure):**
+
+```hcl
+# Example of Azure Provider configuration discussed in the intro
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+```
+
+---
+
+**Question 2: Terraform Modules**
+Can you explain why you are using modules in Terraform?
+
+**Answer:**
+The core concept of modules is reusability. Instead of creating different folders and duplicating code to maintain infrastructure, a parent-child module structure is used. This allows teams to write the resource configuration once (child module) and reuse it multiple times across the infrastructure (parent module) just by calling it, rather than rewriting the infrastructure code.
+
+**Snippet (Module Block):**
+
+```hcl
+# Example of calling a child module from a parent environment
+module "storage_account" {
+  source               = "../modules/storage"
+  resource_group_name  = "my-rg"
+  location             = "eastus"
+  storage_account_name = "mystorageacct123"
+}
+
+```
+
+---
+
+**Question 3: Common Terraform Blocks**
+What are the basic blocks you are using regularly in Terraform?
+
+**Answer:**
+The most basic blocks used for creating infrastructure include:
+
+* The `terraform` block.
+* The `provider` block.
+* `resource` blocks (for Azure resources).
+* `variable` blocks (which can contain lists, maps, and nested maps to pass values dynamically).
+
+**Snippet (Basic Blocks):**
+
+```hcl
+# Variable Block
+variable "location" {
+  type    = string
+  default = "West Europe"
+}
+
+# Resource Block
+resource "azurerm_resource_group" "example" {
+  name     = "example-resources"
+  location = var.location
+}
+
+```
+
+---
+
+**Question 4: Meta-Arguments (`count` vs. `for_each`)**
+Can you give the difference between `count` and `for_each`? Why do we use them?
+
+**Answer:**
+*Note: The interviewee admitted to having a blurred memory regarding `count` and primarily uses `for_each`.*
+`for_each` is a meta-argument used to iterate over a list or a map (including nested maps) to create multiple instances of a resource dynamically without duplicating the resource block.
+
+**Snippet (`for_each` implementation):**
+
+```hcl
+# Example of using for_each with a map
+variable "storage_accounts" {
+  type = map(string)
+  default = {
+    "account1" = "Standard_LRS"
+    "account2" = "Standard_GRS"
+  }
+}
+
+resource "azurerm_storage_account" "example" {
+  for_each                 = var.storage_accounts
+  name                     = each.key
+  account_replication_type = each.value
+  # ... other required arguments ...
+}
+
+```
+
+---
+
+**Question 5: Terraform State File**
+What is your understanding of the state file?
+
+**Answer:**
+The state file is the core "heart" of Terraform. It stores all the information about the infrastructure that has been created. It tracks the structure of the code and maps the configuration to the actual resources deployed in the cloud. It is useful for developers to understand the current state of the infrastructure and see if new resources have been added or modified.
+
+**Snippet (State File Representation):**
+
+```json
+// Snippet showing the JSON structure of a local terraform.tfstate file
+{
+  "version": 4,
+  "terraform_version": "1.5.0",
+  "serial": 1,
+  "lineage": "a1b2c3d4-e5f6-7890-1234-56789abcdef0",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "azurerm_resource_group",
+      "name": "example",
+      "provider": "provider[\"registry.terraform.io/hashicorp/azurerm\"]",
+      "instances": [
+        // Resource details tracked here
+      ]
+    }
+  ]
+}
+
+```
+
+---
+
+**Question 6: Data Blocks**
+Why do we use the data block in Terraform?
+
+**Answer:**
+*Note: The interviewee stated they have never used a data block and could not provide an answer.*
+*(Contextual Answer: Data blocks are used to fetch and read information defined outside of the current Terraform configuration, such as querying an existing virtual network or fetching an Azure subscription ID).*
+
+**Snippet (Data Block):**
+
+```hcl
+# Example of reading an existing resource group using a data block
+data "azurerm_resource_group" "existing" {
+  name = "existing-rg-name"
+}
+
+output "id" {
+  value = data.azurerm_resource_group.existing.id
+}
+
+```
+
+---
+
+**Question 7: CI/CD Pipelines**
+How have you configured the CI/CD pipelines in Azure DevOps (ADO)?
+
+**Answer:**
+*Note: The interviewee admitted that while they included CI/CD in their introduction, they have not actually reached the stage of configuring pipelines in their practical experience yet.*
+
+**Snippet (Azure DevOps Pipeline YAML):**
+
+```yaml
+# Example snippet of a basic Azure Pipeline for Terraform
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: TerraformInstaller@1
+  inputs:
+    terraformVersion: 'latest'
+
+- task: TerraformTaskV4@4
+  inputs:
+    provider: 'azurerm'
+    command: 'init'
+    backendServiceArm: 'MyServiceConnection'
+    backendAzureRmResourceGroupName: 'tfstate-rg'
+    backendAzureRmStorageAccountName: 'tfstatesa'
+    backendAzureRmContainerName: 'tfstate'
+    backendAzureRmKey: 'prod.terraform.tfstate'
+
+```
+
+### Interviewer's Feedback
+
+Based on the mock interview session, the interviewer (Shyamu Bhagat) provided several critical pieces of feedback for the candidates to improve their performance:
+
+* **The Introduction is Make-or-Break:** The interviewer emphasized that "the first impression is the last impression." A strong, confident introduction can set a positive tone for the entire interview and sometimes prevent the interviewer from drilling too hard into difficult topics.
+* **Preparation and Memorization:** Candidates were strongly advised to write down a 20–25 line professional introduction and memorize it completely. It should flow naturally without hesitation, so the candidate isn't thinking of what to say next while speaking.
+* **Lack of Content Despite Good Communication:** For one candidate, the interviewer noted that while their English and communication skills were excellent, the actual technical content of their answers was hollow. The advice was to build a richer "use case" around a specific project to give their answers more substance.
+* **Don't Claim Unpracticed Skills:** The interviewer quickly caught a candidate claiming experience with CI/CD pipelines and Terraform Data Blocks, despite the candidate not actually having hands-on experience with them yet. The feedback was blunt: if you haven't built it or practiced it, do not include it in your introduction or resume, as it invites questions you cannot answer.
+* **Frame Yourself as a Professional, Not Just a Learner:** Candidates were advised to stop highlighting that they are just "interns" or "freshers." Instead, they should focus on explaining the architecture they work on (Frontend, Backend, Database) and how they use Terraform to deploy it, framing their experience around real-world application hosting.
+
+---
+
+### Actionable Tips for Your Preparation
+
+Building on that feedback, here are a few strategies to help you dominate your upcoming technical interviews:
+
+* **Master the "Elevator Pitch":** Your introduction should follow a tight structure: *Who you are ➔ Your current role/focus ➔ The specific tools you use daily (e.g., Terraform, Azure) ➔ A high-level overview of the architecture you manage.* Record yourself giving this introduction until it sounds conversational rather than recited.
+* **Leverage Your Training for Use Cases:** When interviewers ask for practical use cases, draw directly from the hands-on labs and deployments you are currently building in your technical education programs. The structured curriculum from your professional development courses is a perfect foundation—take those sandbox exercises and frame them as real-world architectural solutions.
+* **Control the Narrative:** Interviewers will ask you about the technologies you bring up. Use this to your advantage by intentionally steering your introduction toward the areas where you are strongest (like `for_each` and modular structures) and completely omitting the areas where you are still learning (like advanced CI/CD pipelines).
+* **Adopt the "Consultant" Mindset:** When answering scenario-based questions, don't just list commands. Explain *why* a technology is used. For example, instead of just saying "I use a backend block," explain that "I configure an Azure backend to ensure my team has a centralized state file with state-locking, which prevents deployment conflicts."
+
+---
 
 
 
