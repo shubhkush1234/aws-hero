@@ -301,5 +301,176 @@ The interviewers (Mukesh and Sukhbir) provided distinct feedback for the two can
 * **Master the "I don't know, but..." Pivot:** If you are asked a command you don't remember (like a specific `awk` syntax), say: *"I don't have the exact syntax memorized, but I know I would use `grep` or `awk` to achieve this, and I would refer to the man pages or documentation to get the exact flags."* This shows problem-solving skills rather than just memory.
 * **Nail the Basics of Your Tools:** In DevOps, tools like Terraform have specific vocabularies. Ensure you know the strict definitions of a *Provider*, a *Resource*, a *Module*, and a *Backend*. Blurring the lines between these concepts in an interview is a red flag for senior engineers.
 
+---
+---
+# Part 3
 
+## 1. Questions Asked During the Interview
+
+1. What are the different types of deployment strategies?
+2. What are Terraform providers, and which one is used for Azure?
+3. What is the difference between `for_each` and `map` in Terraform?
+4. What are the meta-arguments in Terraform?
+5. What are the core blocks used in a Terraform configuration?
+6. Can you explain the Terraform lifecycle?
+7. How do you secure the Terraform state file?
+8. What happens if someone manually deletes a resource from the portal that was provisioned via Terraform, and how do you recover it?
+9. What are the types of Load Balancers in Azure?
+10. What is RBAC (Role-Based Access Control) in Azure?
+
+---
+
+## 2. Interview-Ready Answers
+
+**What are Terraform providers, and which one is used for Azure?**
+A provider is a plugin that Terraform uses to translate the API interactions with cloud services. It allows Terraform to manage third-party platforms. For Microsoft Azure, we use the `azurerm` provider to provision and manage infrastructure.
+
+```hcl
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+```
+
+**What is the difference between `for_each` and `map` in Terraform?**
+A `map` is a data structure (a collection of key-value pairs) used to define variables. `for_each` is a meta-argument that iterates over a map or a set of strings to dynamically create multiple instances of a single resource without duplicating code.
+
+```hcl
+variable "subnets" {
+  type = map(string)
+  default = {
+    "frontend" = "10.0.1.0/24"
+    "backend"  = "10.0.2.0/24"
+  }
+}
+
+resource "azurerm_subnet" "example" {
+  for_each             = var.subnets
+  name                 = each.key
+  address_prefixes     = [each.value]
+  resource_group_name  = "rg-example"
+  virtual_network_name = "vnet-example"
+}
+
+```
+
+**What are the meta-arguments in Terraform?**
+Meta-arguments are special constructs used within resource or module blocks to alter their default behavior. The primary meta-arguments are `depends_on` (forcing a specific creation order), `count` (creating a specific number of identical resources), `for_each` (iterating over collections), `provider` (specifying a non-default provider), and `lifecycle` (controlling creation/deletion behaviors).
+
+```hcl
+resource "azurerm_virtual_machine" "app_vm" {
+  # Configuration details...
+  
+  # Meta-argument
+  depends_on = [
+    azurerm_network_interface.app_nic
+  ]
+}
+
+```
+
+**How do you secure the Terraform state file?**
+The state file contains sensitive data and infrastructure blueprints. To secure it, we configure a remote backend rather than storing it locally. In Azure, the state file is stored in an Azure Storage Account Blob Container. We secure the storage account by enabling encryption at rest, restricting network access to specific IPs or Virtual Networks, implementing state locking to prevent concurrent modifications, and using strict RBAC policies so only authorized CI/CD service principals can access the container.
+
+```hcl
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "rg-terraform-state"
+    storage_account_name = "tfstatestorageacct"
+    container_name       = "tfstatecontainer"
+    key                  = "prod.terraform.tfstate"
+  }
+}
+
+```
+
+**Can you explain the Terraform lifecycle?**
+The standard Terraform lifecycle consists of four primary stages used to author, preview, deploy, and clean up infrastructure.
+
+```text
++----------------+       +-----------------+       +-----------------+       +-------------------+
+| terraform init | ----> | terraform plan  | ----> | terraform apply | ----> | terraform destroy |
++----------------+       +-----------------+       +-----------------+       +-------------------+
+ (Downloads plugins        (Previews changes         (Provisions the           (Tears down the
+  and initializes          to infrastructure)        resources in cloud)       infrastructure)
+  the backend)
+
+```
+
+**What happens if someone manually deletes a resource from the portal that was provisioned via Terraform, and how do you recover it?**
+This scenario creates a "configuration drift," where the actual cloud infrastructure no longer matches the Terraform state file. If you run `terraform plan`, Terraform will identify that the resource is missing and will propose creating it again. You simply run `terraform apply` to re-provision the deleted resource. If the resource was recreated manually and you just need Terraform to track it again, you use the `terraform import` command.
+
+```bash
+# Example of importing an manually created Azure Resource Group back into Terraform state
+terraform import azurerm_resource_group.example /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/my-manual-rg
+
+```
+
+**What are the types of Load Balancers in Azure?**
+Azure offers two primary types of Load Balancers: Public Load Balancers (used to distribute internet traffic to your VMs) and Internal (Private) Load Balancers (used to distribute traffic within a virtual network, such as routing traffic from the web tier to the database tier).
+
+```hcl
+resource "azurerm_lb" "example" {
+  name                = "TestLoadBalancer"
+  location            = "East US"
+  resource_group_name = "rg-example"
+
+  frontend_ip_configuration {
+    name                 = "PublicIPAddress"
+    public_ip_address_id = azurerm_public_ip.example.id
+  }
+}
+
+```
+
+**What is RBAC (Role-Based Access Control) in Azure?**
+RBAC is an authorization system built on Azure Resource Manager that provides fine-grained access management to Azure resources. It operates by assigning roles (like Owner, Contributor, or Reader) to security principals (users, groups, or service principals) at a specific scope (Subscription, Resource Group, or Resource level).
+
+```hcl
+data "azurerm_subscription" "primary" {}
+
+resource "azurerm_role_assignment" "example" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Reader"
+  principal_id         = "00000000-0000-0000-0000-000000000000"
+}
+
+```
+
+---
+
+## 3. Topics Covered
+
+* **Terraform Fundamentals:** Meta-arguments, `for_each` vs. `map`, providers, configuration blocks, and the execution lifecycle.
+* **Infrastructure State Management:** Securing remote state files, state file locking, and handling manual configuration drifts.
+* **Azure Cloud Concepts:** Azure Load Balancers, Role-Based Access Control (RBAC), and Azure Resource Manager concepts.
+* **Interview Etiquette & Soft Skills:** Structuring self-introductions, camera professionalism, and direct communication.
+
+---
+
+## 4. Interviewers' Comments and Feedback
+
+* **Professional Address:** Never use "Sir" or "Ma'am" during a technical interview. The IT industry operates on a first-name basis. Addressing interviewers by their first name establishes a professional, peer-to-peer dynamic.
+* **Camera Policy:** Keeping your camera off—even with an excuse about technical difficulties—creates a highly negative impression. Always join with a working camera, using a mobile device if your laptop camera fails.
+* **Listen to the Exact Question:** The candidate frequently missed the core of the question, answering "what a provider does" instead of "what types of providers exist." Pause and process exactly what is being asked before speaking.
+* **Be Direct About Knowledge Gaps:** It is completely acceptable to say you do not know the answer. Fumbling or guessing (as seen with the RBAC and Load Balancer questions) wastes time and frustrates the interviewer.
+* **Refine the Introduction:** Keep the self-introduction crisp and limited to a few minutes. Summarize your total experience, relevant tech stack, and current project highlights. Do not let the introduction eat up 15 minutes of an interview slot.
+
+---
+
+## 5. Tips for Your Preparation
+
+* **Implement the "Pause and Process" Rule:** Take a deliberate 2-3 second pause after the interviewer finishes asking a question. This gives your brain a moment to align your answer directly with the prompt, preventing rambling.
+* **Structure Your Scenario Answers:** When asked about troubleshooting (like state file issues), use the STAR method. Quickly define the Situation, the Task at hand, the exact Action (commands) you took, and the Result.
+* **Bridge Theory with Practical Experience:** Building heavily on the rigorous, hands-on modules you are continuously tackling with TrainWithShubham and Naresh i Technologies will give you the exact real-world examples needed to ace these scenario-based questions. Practice explaining these lab assignments out loud to build your vocal delivery.
+* **Master the "I Don't Know" Pivot:** If you forget a specific detail, confidently pivot to your problem-solving process. Say, "I don't recall the exact syntax off the top of my head, but I know I would consult the Terraform Registry documentation for that block to implement it."
 
