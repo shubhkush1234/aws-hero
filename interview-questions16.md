@@ -352,3 +352,207 @@ The **Spokes** host the actual application workloads (like web servers or databa
 +-----------------------+         +-----------------------+
 
 ```
+---
+
+
+------------------------------------------------------------------------------------------------------------------------
+
+
+
+# Azure Networking and Architecture Mock Interview - Part 2
+
+## 1. Interview Topics Covered
+
+* **Azure VPN Connectivity:** Site-to-Site Peering and Authentication Methods
+* **Azure Gateways:** VPN Gateway vs. ExpressRoute Gateway
+* **VNet Peering Features:** Gateway Transit and Remote Gateways
+* **Azure Subnet Naming:** Default mandatory subnet names for managed services
+* **IT Service Management (ITSM):** Change Management Process
+* **Azure Architecture:** Hub and Spoke Topology and User Defined Routes (UDRs)
+
+---
+
+## 2. Interview Questions Asked
+
+1. What are the authentication methods available for a Site-to-Site connection, and what components are required to set it up?
+2. What is the difference between a VPN Gateway and an ExpressRoute Gateway?
+3. What is "Gateway Transit" or "Remote Gateway" in Azure VNet Peering?
+4. What are some default subnets required by Azure when deploying specific managed services?
+5. Can you explain the basic Change Management process in an IT environment?
+6. Can you explain the Hub and Spoke network topology and how traffic is routed between isolated spokes?
+
+---
+
+## 3. Interview-Ready Answers and Diagrams
+
+### Q1: What are the authentication methods available for a Site-to-Site connection, and what components are required to set it up?
+
+**Answer:**
+There are primarily three authentication methods: Microsoft Entra ID (formerly Azure AD), Certificate-based, and RADIUS-based authentication. The most common approach for Site-to-Site is certificate-based authentication.
+
+To establish this connection between Azure and an on-premises network (or another cloud), we need a few key components:
+
+* **Azure VPN Gateway:** Deployed in Azure within a specific `GatewaySubnet` and assigned a Public IP.
+* **Local Network Gateway:** An Azure resource that represents your on-premises router, storing its Public IP and local subnet ranges (or routing family details).
+* **Connection Object:** Links the VPN Gateway and Local Network Gateway using a shared pre-shared key (PSK) or certificates.
+* **Root and Child Certificates:** The Root certificate is uploaded to the Azure VPN Gateway, and the child certificate is installed on the client/on-prem side to authenticate the tunnel.
+
+**Diagram to Draw:**
+
+```text
+[ On-Premises ]                                    [ Azure Cloud ]
++---------------+                                +-----------------+
+|               |                                |                 |
+| Local Router  | <====== IPsec VPN Tunnel =====>| Azure VPN GW    |
+| (Public IP)   |      (Cert/PSK Auth)           | (Public IP)     |
+|               |                                |                 |
++---------------+                                +-----------------+
+        ^                                                ^
+        |                                                |
+        | (Mapped via)                                   | (Deployed in)
++-----------------------+                        +-----------------+
+| Local Network Gateway |                        |  GatewaySubnet  |
++-----------------------+                        +-----------------+
+
+```
+
+---
+
+### Q2: What is the difference between a VPN Gateway and an ExpressRoute Gateway?
+
+**Answer:**
+The primary difference lies in the medium used for data travel.
+
+* A **VPN Gateway** routes your traffic over the shared, public internet. It uses encryption (like IPsec) to secure the data, but it is still traversing a public channel.
+* An **ExpressRoute Gateway** routes your traffic through a dedicated, private connection via the Microsoft backbone network. It does not touch the public internet, making it inherently more secure and providing more reliable latency.
+
+**Diagram to Draw:**
+
+```text
+                     MEDIUM OF TRAVEL
+                     ----------------
+                 (Encrypted, but Public)
+[ On-Prem ] <~~~~~~~~ PUBLIC INTERNET ~~~~~~~~> [ Azure VPN GW ]
+
+                 (Dedicated, Private)
+[ On-Prem ] <======= MICROSOFT BACKBONE ======> [ Azure ER GW ]
+
+```
+
+---
+
+### Q3: What is "Gateway Transit" or "Remote Gateway" in Azure VNet Peering?
+
+**Answer:**
+Gateway Transit is a feature enabled during VNet peering that allows a peered virtual network to use the VPN Gateway deployed in another virtual network. This is heavily used in Hub and Spoke topologies.
+
+When configuring this via Infrastructure as Code (like Terraform), we use specific arguments. On the Hub VNet peering setting, we enable `allow_gateway_transit = true`. On the Spoke VNet peering setting, we enable `use_remote_gateways = true`. This saves costs by removing the need to deploy a separate gateway in every single spoke.
+
+**Diagram to Draw:**
+
+```text
+[ On-Prem ] <---VPN---> [ HUB VNET ] <---Peering---> [ SPOKE VNET ]
+                      (Has VPN Gateway)             (No Gateway)
+                      allow_gateway_transit=true    use_remote_gateways=true
+
+* Spoke VNet talks to On-Prem by transiting through the Hub's Gateway.
+
+```
+
+---
+
+### Q4: What are some default subnets required by Azure when deploying specific managed services?
+
+**Answer:**
+When deploying certain managed central networking or security services in Azure, Microsoft requires you to create subnets with specific, dedicated names. You cannot use custom names for these.
+
+* **GatewaySubnet:** Required for deploying VPN Gateways or ExpressRoute Gateways.
+* **AzureBastionSubnet:** Required for deploying Azure Bastion (the jump server service).
+* **AzureFirewallSubnet:** Required for deploying Azure Firewall.
+
+**Diagram to Draw:**
+
+```text
++---------------------------------------------------+
+|               Azure Virtual Network               |
+|                                                   |
+|  +-----------------+         +-----------------+  |
+|  | GatewaySubnet   |         | AzureFirewall   |  |
+|  | (For VPN/ER)    |         | Subnet          |  |
+|  +-----------------+         +-----------------+  |
+|                                                   |
+|  +-----------------+         +-----------------+  |
+|  | AzureBastion    |         | Workload Subnet |  |
+|  | Subnet          |         | (Custom Name)   |  |
+|  +-----------------+         +-----------------+  |
++---------------------------------------------------+
+
+```
+
+---
+
+### Q5: Can you explain the basic Change Management process in an IT environment?
+
+**Answer:**
+Change Management is a critical ITSM process used to ensure that any modifications to the infrastructure are done safely and with minimal disruption.
+Before implementing any change, we must log a Change Request ticket. This ticket must contain detailed information, including the **Implementation Plan** (step-by-step actions), the **Rollback/Restore Plan** (how to revert if things fail), and the scheduled **Downtime** window. It also includes any workaround solutions available during the outage.
+
+**Diagram to Draw:**
+
+```text
+[ Identify Need ]
+       |
+       v
+[ Log Change Request ] -> Includes: 1. Implementation Plan
+       |                            2. Rollback/Restore Plan
+       v                            3. Downtime Window
+[ CAB Approval ]
+       |
+       v
+[ Implement Change ] -> If Fail -> [ Execute Rollback Plan ]
+       |
+       v
+[ Close Ticket ]
+
+```
+
+---
+
+### Q6: Can you explain the Hub and Spoke network topology and how traffic is routed between isolated spokes?
+
+**Answer:**
+The Hub and Spoke model is similar to a Star topology. It consists of a central "Hub" VNet and multiple isolated "Spoke" VNets peered to the Hub.
+
+The Hub contains centralized, shared resources like Azure Firewall, Azure Bastion, and VPN Gateways. The Spokes contain isolated workloads. By default, Spoke A cannot communicate with Spoke B directly. To allow communication, we attach a User Defined Route (UDR) to the subnets in the Spoke VNets. This UDR forces the "next hop" of the traffic to be the private IP address of the Azure Firewall in the Hub. The Firewall then inspects the traffic and routes it to the destination Spoke, ensuring centralized security and traffic filtering.
+
+**Diagram to Draw:**
+
+```text
+                     +-----------------------+
+                     |       HUB VNET        |
+                     |  [ Azure Firewall ]   |
+                     |   (Private IP: X)     |
+                     +-----------------------+
+                      ^                     | 
+       (UDR Next Hop  |                     | (Traffic Inspected
+        points to FW) |                     |  and allowed)
+                      |                     v
++-----------------------+         +-----------------------+
+|     SPOKE VNET 1      |         |     SPOKE VNET 2      |
+|     (Workload A)      |   X     |     (Workload B)      |
+| [ Route Table: UDR ]  | <---//- | [ Route Table: UDR ]  |
++-----------------------+         +-----------------------+
+                (No Direct Spoke-to-Spoke)
+
+```
+
+
+
+
+
+
+
+
+
+
+```
