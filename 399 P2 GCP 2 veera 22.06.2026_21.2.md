@@ -1,27 +1,29 @@
+Part2 and part 3 combined notes
+
 ## To-the-Point Summary
 
-This lecture provides a comprehensive architectural and practical deep dive into **Google Cloud Platform (GCP)**, focusing primarily on networking constructs and virtual machines, while contrasting them with Amazon Web Services (AWS).
+This lecture provides a comprehensive architectural and practical deep dive into **Google Cloud Platform (GCP)**, focusing primarily on global networking constructs, Virtual Machine (VM) provisioning, secure cross-tier routing, and cross-instance access architectures.
 
-The trainer highlights core foundational elements:
+Key foundational and practical elements covered include:
 
-* **Global vs. Regional Cloud Design:** Unlike AWS where Virtual Private Clouds (VPCs) are restricted to a single region, a GCP VPC is inherently **Global**. Subnets in GCP are **Regional** rather than being bound to a single Availability Zone (AZ).
-* **Compute Engine Customization:** Step-by-step walkthroughs demonstrate launching instances (Virtual Machines), managing machine configurations, choosing operating systems (e.g., Ubuntu, Debian), and inspecting security contexts.
-* **Network Access & Security:** The trainer demonstrates that the differentiation between public and private VMs in GCP relies heavily on the assignment of an **External IP** address and **Firewall rules** (which operate at the VPC level via network tags), rather than separate custom routing tables.
-* **Egress Connectivity:** A detailed real-time simulation shows a private VM failing to connect to external repositories (`apt update`), followed by the mitigation step: provisioning and attaching a **Cloud NAT Gateway** combined with a Cloud Router to safely facilitate outbound traffic.
+* **Global Network Design:** Unlike AWS where Virtual Private Clouds (VPCs) are structurally confined to a single region, a GCP VPC is inherently **Global**. Subnets within GCP are **Regional** structures that span across all Availability Zones within that specific region, which vastly simplifies universal systems clustering.
+* **Public vs. Private Network Isolation:** The differentiation between public and private instances in GCP relies heavily on the assignment of an **External IP** address and **Stateful VPC Firewall rules** (which operate at the VPC network level via network tags), rather than separate custom routing tables.
+* **Egress Remediation via Cloud NAT:** Private instances lacking public IPs cannot reach external repositories by default. A step-by-step practical setup demonstrates creating a control-plane **Cloud Router** combined with a data-plane **Cloud NAT Gateway** to safely facilitate outbound traffic (e.g., `apt-get update`) without exposing instances to inbound vulnerabilities.
+* **Secure Bastion Host (Jump Box) Architecture:** To securely manage a completely private VM, the trainer demonstrates a professional proxy access paradigm. By injecting custom generated public keys into the GCP Metadata infrastructure, an operator connects to a public facing instance, establishes a secure local key storage enclave (`id_ed25519`), applies rigid POSIX permissions (`chmod 400`), and securely hops into the private network core (`10.0.0.3`).
 
 ---
 
 ## Detailed Lecture Notes & Architectural Steps
 
-### 1. Cloud Market Overview & Factual Statistics
+### 1. Cloud Market Infrastructure Dynamics
 
-* **Amazon Web Services (AWS):** Continues to lead with a dominant market share fluctuating between **31% and 33%**.
-* **Microsoft Azure:** Holds the second position comfortably with roughly **23% to 24%** market share.
-* **Google Cloud Platform (GCP):** Captures approximately **11% to 15%** of the global infrastructure footprint, showing strong acceleration in Data Analytics, AI/ML workloads, and native Kubernetes (GKE) implementations.
+* **Amazon Web Services (AWS):** Continues to lead with a dominant global market share fluctuating between **31% and 33%**.
+* **Microsoft Azure:** Holds the second position comfortably with approximately **23% to 24%** market share.
+* **Google Cloud Platform (GCP):** Captures approximately **11% to 15%** of the global infrastructure footprint, showing strong acceleration in Data Analytics, Enterprise AI/ML workloads, and native Kubernetes (GKE) orchestration.
 
 ### 2. Global Infrastructure Layout: AWS vs. GCP
 
-The core conceptual variance lies in how geographical resources are bound within the respective network topologies.
+The core conceptual variance lies in how geographical resources are bound within the respective Software Defined Networking (SDN) topologies.
 
 | Architectural Component | Amazon Web Services (AWS) | Google Cloud Platform (GCP) |
 | --- | --- | --- |
@@ -30,7 +32,7 @@ The core conceptual variance lies in how geographical resources are bound within
 | **VPC Scope** | **Regional** (Bound to one region) | **Global** (Spans across all regions globally) |
 | **Subnet Scope** | **Zonal** (Bound to a specific AZ) | **Regional** (Spans across all zones within that region) |
 
-#### Structural Layout of GCP Global Topology
+#### Structural Layout of GCP Global Topology Diagram
 
 ```
 +---------------------------------------------------------------------------------+
@@ -55,47 +57,44 @@ The core conceptual variance lies in how geographical resources are bound within
 
 ### 3. Step-by-Step Practical Configurations Demonstrated by the Trainer
 
-#### Step 1: Creating a Custom Resource Organization (Project Setup)
+#### Step 1: Creating a Custom Resource Project Context
 
-* To implement any infrastructure in GCP, you must first organize it under a **Project**.
-* Click on the project dropdown section in the top left corner of the Google Cloud Console dashboard and select **New Project**.
-* Define a distinct project name (e.g., `veera`). GCP automatically computes a unique global **Project ID** (e.g., `veera-500216`).
-* Leave the billing account and destination folder as default or set to 'No organization' if in a sandbox/playground domain, then click **Create**.
+1. To implement any infrastructure resource in GCP, you must first organize it under a **Project**.
+2. Click on the project dropdown section in the top-left corner of the Google Cloud Console dashboard and select **New Project**.
+3. Define a distinct project name (e.g., `veera`). GCP automatically computes a unique global **Project ID** (e.g., `veera-500216`).
+4. Leave the billing account and destination folder as default or set to 'No organization' if in a sandbox domain, then click **Create**.
 
-#### Step 2: Provisioning a Virtual Private Cloud (VPC) Network
+#### Step 2: Provisioning a Global Custom VPC Network
 
-* Open the navigation menu, search for **VPC network**, and select it.
-* Click on **Create VPC Network**. Name your network asset (e.g., `veera`).
-* Under **Subnet creation mode**, choose between **Automatic** (which automatically spans a pre-calculated CIDR block subnet into every single active global region) and **Custom**. The trainer selects **Custom** for robust production isolation.
-* Uncheck **Set MTU automatically** if explicit configurations are required, though leaving maximum transmission units at `1460` works optimally for standard TCP workloads.
-* Under the **Firewall rules** section, GCP automatically lists standard system-suggested ingress allowances such as `allow-icmp`, `allow-ssh` (port 22), and `allow-rdp` (port 3389). Select the required baselines.
-* Click **Create** and wait for the SDN (Software Defined Network) layer to distribute globally.
+1. Open the navigation menu, search for **VPC network**, and select it.
+2. Click on **Create VPC Network**. Name your network asset (e.g., `veera`).
+3. Under **Subnet creation mode**, choose **Custom**. (Choosing *Automatic* will automatically populate a pre-calculated CIDR block subnet into every single active global region, which is not recommended for production environments).
+4. Uncheck **Set MTU automatically** if explicit configurations are required, though leaving maximum transmission units at `1460` works optimally for standard TCP workloads.
+5. Under the **Firewall rules** section, select baseline ingress system-suggested defaults if needed, such as `allow-icmp`, `allow-ssh` (port 22), and `allow-rdp` (port 3389).
+6. Click **Create** and wait for the SDN layer to distribute the configuration globally.
 
-#### Step 3: Launching a Public-Facing VM Instance
+#### Step 3: Launching the Public Facing Compute VM (Bastion Host)
 
-* Navigate to **Compute Engine** > **VM instances** from the primary service menu.
-* Click **Create Instance**. Define the target system name (e.g., `nit`).
-* Select the geographical destination: **Region:** `us-central1 (Iowa)` and **Zone:** `us-central1-a`.
+1. Navigate to **Compute Engine** > **VM instances** from the primary service menu.
+2. Click **Create Instance**. Define the target system name (e.g., `nit`).
+3. Select the geographical destination: **Region:** `us-central1 (Iowa)` and **Zone:** `us-central1-a`.
+4. Under **Machine configuration**, choose general-purpose families (`E2 series` matched with an `e2-medium` machine type provisioning 2 vCPUs and 4 GB memory).
+5. Under **Boot disk**, click **Change** to override default operating system options. Select **Operating System:** `Ubuntu` and **Version:** `Ubuntu 26.04 LTS Minimal` (or appropriate recent stable distribution image layout). Set size parameters and click **Select**.
+6. Under **Networking**, ensure it hooks into the `veera` VPC network. Under **External IP configuration**, retain an **Ephemeral IP** to make it accessible outside the internal cloud network.
+7. Click **Create**. Once completed, copy down the computed **Internal IP** (e.g., `10.0.0.2`) and **External IP** (e.g., `34.57.216.21`).
 
-> **Important:** The chosen region dictates which subnets are accessible, while the zone maps the deployment to a physical data center building.
+#### Step 4: Launching the Fully Private Instance Core
 
-* Under **Machine configuration**, choose general-purpose families (`E2 series` matched with an `e2-medium` machine type provisioning 2 vCPUs and 4 GB memory).
-* Under **Boot disk**, click **Change** to override default operating system options. Select **Operating System:** `Ubuntu` and **Version:** `Ubuntu 26.04 LTS Minimal` (or appropriate recent image layout). Set size parameters and click **Select**.
-* Under **Networking**, ensure it hooks into the `veera` VPC network. Under **External IP configuration**, retain an **Ephemeral IP** to make it accessible outside the internal cloud network.
-* Click **Create**. Once completed, copy down the computed **Internal IP** and **External IP**.
-
-#### Step 4: Launching a Fully Private Instance
-
-* Click **Create Instance** again inside the Compute Engine framework. Name this deployment `nit0private-vm`.
-* Choose matching regional conditions: `us-central1` and zone `us-central1-a`.
-* Maintain matching baseline settings (`E2 / e2-medium` running the identical `Ubuntu` distribution image).
-* Expand **Advanced options** > **Networking**. Under the specific network interface parameters, drop down the **External IPv4 address** parameter and explicitly toggle it to **None**.
-* Click **Create**. This deployment will initialize strictly with an internal private address (e.g., `10.0.0.3`) and have no native path out to public target matrices.
+1. Click **Create Instance** inside the Compute Engine framework. Name this deployment `nit0private-vm`.
+2. Choose matching regional conditions: region `us-central1` and zone `us-central1-a`.
+3. Maintain matching baseline machine settings (`E2 / e2-medium` running the identical `Ubuntu` distribution image).
+4. Expand **Advanced options** > **Networking**. Under the network interface parameters, dropdown the **External IPv4 address** parameter and explicitly toggle it to **None**.
+5. Click **Create**. This deployment will initialize strictly with an internal private address (e.g., `10.0.0.3`) and have no native path out to public networks.
 
 #### Step 5: Validating Egress Blocks via Native Command Testing
 
-* Click on the web-based **SSH** connector console adjacent to the `nit0private-vm` asset listing.
-* Once the terminal loads into the instance, execute a standard repository infrastructure package configuration update:
+1. Click on the web-based **SSH** connector console adjacent to the `nit0private-vm` asset listing.
+2. Once the terminal loads into the instance, execute a standard repository infrastructure package configuration update:
 ```bash
 sudo apt-get update
 
@@ -104,23 +103,81 @@ sudo apt-get update
 
 
 ```
-* **Expected Result Observed:** The execution hangs completely at `Connecting to security.ubuntu.com...` and eventually returns errors stating `Failed to fetch... Connection timed out`. This explicitly demonstrates that private network instances lack built-in outbound internet traversal routes without an address translation bridge.
+3. **Expected Result Observed:** The execution hangs completely at `Connecting to security.ubuntu.com...` and eventually returns errors stating `Failed to fetch... Connection timed out`. This explicitly demonstrates that private network instances lack built-in outbound internet traversal routes without an address translation bridge.
 
 #### Step 6: Mitigating Outbound Blocks Using Cloud NAT & Cloud Router
-* Navigate back to the networking dashboard menu and select **Network Services** > **Cloud NAT**.
-* Click **Get Started** / **Create Cloud NAT Gateway**.
-* Name the gateway mechanism (e.g., `mynat`). Select the matching workspace environment: **Network:** `veera`, and **Region:** `us-central1`.
-* Under the **Cloud Router** selection list, click **Create new router**. Name the routing container (e.g., `myrouter`) and click **Create**.
-* Under **Source IP version**, verify **IPv4** is active. Under **Cloud NAT mapping**, keep **Source** mapped to **Primary and secondary ranges for all subnets** within the region, or customize it strictly to specify particular subnets (e.g., `subnet-1`).
-* Under **NAT IP addresses**, pick **Automatic (Recommended)** to let Google automatically manage and scale external proxy mapping IPs.
-* Click **Create**.
-* Return back to the frozen terminal tab of `nit0private-vm` and re-run:
-  ```bash
-  sudo apt-get update
+1. Navigate back to the networking dashboard menu and select **Network Services** > **Cloud NAT**.
+2. Click **Get Started** / **Create Cloud NAT Gateway**.
+3. Name the gateway mechanism (e.g., `mynat`). Select the matching workspace environment: **Network:** `veera`, and **Region:** `us-central1`.
+4. Under the **Cloud Router** selection list, click **Create new router**. Name the routing container (e.g., `myrouter`) and click **Create**.
+5. Under **Source IP version**, verify **IPv4** is active. Under **Cloud NAT mapping**, keep **Source** mapped to **Primary and secondary ranges for all subnets** within the region.
+6. Under **NAT IP addresses**, pick **Automatic (Recommended)** to let Google automatically manage and scale external proxy mapping IPs.
+7. Click **Create**.
+8. Return back to the frozen terminal tab of `nit0private-vm` and re-run `sudo apt-get update`.
+9. **Observed Outcome:** The command updates successfully in fractions of a second. The system routes transit safely out to the internet through the newly established Cloud NAT Gateway.
+
+#### Step 7: SSH Private Key Enrollment for Public and Private VM Access Framework
+To establish a secure connection from the local workstation into the environment, asymmetric cryptography keys must be registered at the project or instance metadata tier.
+
+1. On your local admin workstation, open an elevated shell environment or Visual Studio Code and generate/locate your production-grade openSSH asymmetric keypair (e.g., `id_ed25519` private key along with its paired public key `id_ed25519.pub`).
+2. Open the public key file (`id_ed25519.pub`) using Notepad or text editor and copy the complete text sequence. The standard string signature mirrors the following syntax structure:
+   ```text
+   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOH1m1xtt2f... veera@veera
 
 ```
 
-* **Observed Outcome:** The command updates successfully in fractions of a second. The system routes transit safely out to the internet through the newly established Cloud NAT Gateway.
+3. Go to the Google Cloud Console, select **Compute Engine** > **VM Instances**, click on the public VM instance `nit`, and select **Edit**.
+4. Scroll down to the **Security and access** or **SSH Keys** metadata category. Click **Add Item**.
+5. Paste the public key string directly into the value field. The console parser automatically resolves the target username association as `veera`. Click **Save**.
+6. Repeat this exact process for the private instance `nit0private-vm`: click **Edit**, scroll down to **SSH Keys**, paste the identical public key string, and click **Save**.
+
+#### Step 8: Configuring Key Enclaves & POSIX Permissions on the Public Jump Box
+
+1. Open the browser-based SSH terminal window for your public facing instance `nit`.
+2. To allow this node to act as a secure Bastion Host capable of proxying connections to the private network core, create a local key storage file:
+```bash
+
+```
+
+
+
+vi id_ed25519
+
+```
+3. Press `i` to enter interactive insert mode. Copy the raw **Private Key** text string from your local admin file (`id_ed25519` or `lbsession.pem`) and paste it completely inside the terminal buffer.
+4. Save and exit the text editor by typing `:` followed by `wq` and pressing Enter.
+5. Inspect the file using `cat id_ed25519` to verify that the string begins with `-----BEGIN OPENSSH PRIVATE KEY-----` and terminates correctly with `-----END OPENSSH PRIVATE KEY-----`.
+6. Apply rigid POSIX access permissions to satisfy security parameters. By default, openSSH engines reject key files that possess overly broad access privileges. Restrict access to the file owner only:
+   ```bash
+chmod 400 id_ed25519
+
+```
+
+#### Step 9: Executing the Cross-Instance SSH Hop to the Private Target
+
+1. From the public host terminal window (`nit`), initiate a secure connection across the internal networking plane to reach the private instance:
+```bash
+ssh -i id_ed25519 veera@10.0.0.3
+
+```
+
+
+
+```
+2. The network interface fabric will prompt you to verify the host identity: `The authenticity of host '10.0.0.3 (10.0.0.3)' can't be established. Are you sure you want to continue connecting (yes/no/[fingerprint])?`.
+3. Type **yes** and press Enter.
+4. **Final Result:** The prompt shifts to `veera@nit0private-vm:~$`. You have successfully jumped through the public bastion environment to manage the private cloud node over secure internal routing paths.
+
+```text
++-----------------------+              +------------------------+              +--------------------+
+| Local Workstation     | --(Pub IP)-->| Public VM (Bastion)    | --(Priv IP)->| Private Instance   |
+| Run: ssh -i key veera |              | Stores Owner-Only Key  |              | Node               |
+| @34.57.216.21         |              | Run: chmod 400 key     |              | Internal IP:       |
++-----------------------+              +------------------------+              | 10.0.0.3           |
+                                       | ssh -i key veera@10.0.3|              +--------------------+
+                                       +------------------------+
+
+```
 
 ---
 
@@ -128,25 +185,13 @@ sudo apt-get update
 
 ### Section A: Questions Discussed by the Trainer
 
-#### Q1. What is the fundamental structural difference between an AWS VPC and a GCP VPC layout?
+#### Q1. What is the fundamental structural difference between an AWS VPC and a GCP VPC layout? `Marked as Important: Asked in multiple interviews`
 
 **Answer:** In AWS, a Virtual Private Cloud (VPC) is strictly confined to a single geographical **Region**; to establish multi-region network meshes, complex peering topologies or Transit Gateways must be provisioned. Conversely, a GCP VPC is inherently **Global**. Subnets within a GCP VPC are **Regional** structures that span across all distinct **Zones** inside that specific region, which vastly simplifies universal systems clustering.
 
-```
-+------------------------------------------------------------+
-|                       GCP GLOBAL VPC                       |
-|   +--------------------------+   +----------------------+  |
-|   |   Subnet (us-central1)   |   | Subnet (asia-south1) |  |
-|   +--------------------------+   +----------------------+  |
-+------------------------------------------------------------+
-
-```
-
 #### Q2. How do you distinguish between a Public VM and a Private VM in Google Cloud Platform?
 
-**Answer:** Unlike AWS, which relies on completely independent routing definitions attached to distinct Internet Gateways (IGW) to dictate public/private subnets, **all subnets in GCP possess an implicit, automatic baseline route to the default internet gateway**.
-
-Whether a Compute Engine instance acts as public or private depends strictly on two factors:
+**Answer:** Unlike AWS, which relies on completely independent routing definitions attached to distinct Internet Gateways (IGW) to dictate public/private subnets, **all subnets in GCP possess an implicit, automatic baseline route to the default internet gateway**. Whether a Compute Engine instance acts as public or private depends strictly on two factors:
 
 1. If it has an **External IP address** assigned to its virtual network interface card (NIC).
 2. If corresponding **VPC Firewall Rules** permit ingress network traffic paths to it. If no external IP is mapped, the instance remains completely private.
@@ -179,7 +224,7 @@ Whether a Compute Engine instance acts as public or private depends strictly on 
 
 ```
 
-#### Q4. In a private GCP architecture framework, when should an engineer utilize Cloud NAT versus a Bastion Host?
+#### Q4. In a private GCP architecture framework, when should an engineer utilize Cloud NAT versus a Bastion Host? `Marked as Important: Asked in multiple interviews`
 
 * **Asked at:** *Wipro, Tata Consultancy Services (TCS)*
 
@@ -213,9 +258,7 @@ Whether a Compute Engine instance acts as public or private depends strictly on 
 * **Asked at:** *HCLTech, Tech Mahindra*
 
 **Answer:**
-GCP Cloud NAT utilizes an allocation architecture where each private VM is assigned a block of source ports from the gateway's external pool (default minimum allocation is usually **64 ports per VM**). If a system experiences connection concurrency challenges (e.g., high-volume database calls or multi-threaded API requests), it can encounter **Port Exhaustion**.
-
-To mitigate this, you can configure **Dynamic Port Allocation**, which allows Cloud NAT to automatically scale up the number of source ports assigned to an instance based on real-time traffic volume.
+GCP Cloud NAT utilizes an allocation architecture where each private VM is assigned a block of source ports from the gateway's external pool (default minimum allocation is usually **64 ports per VM**). If a system experiences connection concurrency challenges (e.g., high-volume database calls or multi-threaded API requests), it can encounter **Port Exhaustion**. To mitigate this, you can configure **Dynamic Port Allocation**, which allows Cloud NAT to automatically scale up the number of source ports assigned to an instance based on real-time traffic volume.
 
 ```
 +---------------------------------------------------------------------+
@@ -235,9 +278,7 @@ To mitigate this, you can configure **Dynamic Port Allocation**, which allows Cl
 * **Asked at:** *Infosys*
 
 **Answer:**
-GCP Cloud NAT is a distributed, software-defined managed service; it is not a physical choke-point appliance or a singular routing hardware container. However, Google's SDN architecture requires a control plane mechanism to manage the routing configurations and translation parameters for subnets.
-
-The **Cloud Router** serves as this control plane configuration manager. It does not route actual packet payloads to the internet itself, but it dynamically provisions and injects egress mapping parameters into Google's Andromeda SDN layer, which allows Cloud NAT to function seamlessly.
+GCP Cloud NAT is a distributed, software-defined managed service; it is not a physical choke-point appliance or a singular routing hardware container. However, Google's SDN architecture requires a control plane mechanism to manage the routing configurations and translation parameters for subnets. The **Cloud Router** serves as this control plane configuration manager. It does not route actual packet payloads to the internet itself, but it dynamically provisions and injects egress mapping parameters into Google's Andromeda SDN layer, which allows Cloud NAT to function seamlessly.
 
 ```
 +------------------+       Configuration Sync       +-------------------+
@@ -251,15 +292,13 @@ The **Cloud Router** serves as this control plane configuration manager. It does
 
 ```
 
-#### Q7. A group of private VMs behind a Cloud NAT need to communicate with an external provider that authenticates requests via a rigid IP Allowlist. How should this be designed?
+#### Q7. A group of private VMs behind a Cloud NAT need to communicate with an external provider that authenticates requests via a rigid IP Allowlist. How should this be designed? `Marked as Important: Asked in multiple interviews`
 
 * **Asked at:** *LTIMindtree, Genpact*
 * **Importance:** **Highly Recommended for Architecture Interviews**
 
 **Answer:**
-By default, setting Cloud NAT IP allocation to *Automatic* allows Google to dynamically allocate and change external IP addresses as needed. To meet strict external allowlist requirements, change the configuration parameters of the Cloud NAT to **Manual Allocation**.
-
-This allows you to reserve specific static **Public External IP addresses** within Cloud Addresses. You can then explicitly bind these static IPs to the Cloud NAT configuration, ensuring that all outbound traffic originating from your private subnets leaves through a deterministic, immutable set of IP addresses.
+By default, setting Cloud NAT IP allocation to *Automatic* allows Google to dynamically allocate and change external IP addresses as needed. To meet strict external allowlist requirements, change the configuration parameters of the Cloud NAT to **Manual Allocation**. This allows you to reserve specific static **Public External IP addresses** within Cloud Addresses. You can then explicitly bind these static IPs to the Cloud NAT configuration, ensuring that all outbound traffic originating from your private subnets leaves through a deterministic, immutable set of IP addresses.
 
 ```
 +--------------------+      Translates via      +--------------------------+
@@ -278,9 +317,7 @@ This allows you to reserve specific static **Public External IP addresses** with
 
 * **Asked at:** *Mindtree / LTI*
 
-**Answer:** No. Traffic directed to Google APIs and multi-tenant services (such as GCS, BigQuery, or Secret Manager) does not need to traverse an external internet gateway or Cloud NAT path.
-
-Instead, you should enable **Private Google Access** on the regional subnet configuration. This tells the VPC networking fabric to route traffic destined for Google APIs over internal Google backbone network paths, utilizing default internal routes directly to internal destination endpoints.
+**Answer:** No. Traffic directed to Google APIs and multi-tenant services (such as GCS, BigQuery, or Secret Manager) does not need to traverse an external internet gateway or Cloud NAT path. Instead, you should enable **Private Google Access** on the regional subnet configuration. This tells the VPC networking fabric to route traffic destined for Google APIs over internal Google backbone network paths, utilizing default internal routes directly to internal destination endpoints.
 
 ```
 +----------------------------------------------------------------------+
@@ -297,7 +334,7 @@ Instead, you should enable **Private Google Access** on the regional subnet conf
 
 ```
 
-#### Q9. How do you troubleshoot an operational scenario where a private instance still cannot reach the external internet despite a Cloud NAT being configured?
+#### Q9. How do you troubleshoot an operational scenario where a private instance still cannot reach the external internet despite a Cloud NAT being configured? `Marked as Important: Asked in multiple interviews`
 
 * **Asked at:** *Capgemini*
 
@@ -345,9 +382,7 @@ Standard Tier: [User] ---> (Public ISP Networks) ======= Public Internet =======
 
 * **Asked at:** *Tata Consultancy Services (TCS)*
 
-**Answer:** No. A GCP Cloud NAT resource is structurally bound to a single **Cloud Router**, and both resources are isolated within a specific **VPC Network** and **Region**.
-
-If your environment consists of a multi-VPC architecture (such as separate production, staging, and development networks), you must deploy an independent Cloud NAT Gateway and Cloud Router configuration within each distinct VPC network to handle its respective egress traffic.
+**Answer:** No. A GCP Cloud NAT resource is structurally bound to a single **Cloud Router**, and both resources are isolated within a specific **VPC Network** and **Region**. If your environment consists of a multi-VPC architecture (such as separate production, staging, and development networks), you must deploy an independent Cloud NAT Gateway and Cloud Router configuration within each distinct VPC network to handle its respective egress traffic.
 
 ```
 +------------------------+             +------------------------+
@@ -359,21 +394,18 @@ If your environment consists of a multi-VPC architecture (such as separate produ
 
 ```
 
-#### Q12. Explain the architectural implications of MTU size differences when connecting a GCP VPC to an external on-premises network.
+#### Q12. Explain why openSSH triggers a "Bad Permissions" error if a private key file is left at default configuration settings, and how this relates to public-key cryptography.
 
-* **Asked at:** *HCLTech, Tech Mahindra*
+* **Asked at:** *Accenture, Tech Mahindra*
 
 **Answer:**
-The default Maximum Transmission Unit (MTU) for a GCP VPC network is **1460 bytes** (optimized for Google's internal network encapsulation layers), whereas standard corporate networks and on-premises hardware typically use an MTU of **1500 bytes**.
+OpenSSH client engines strictly enforce security boundaries on private cryptographic identities. If a private key file (like `id_ed25519`) possesses wide reading permissions (e.g., permissions like `644` or `777` where other system users can read the file), openSSH will block execution and refuse to connect to protect the key from compromise.
 
-When establishing communication channels between these environments (such as via Cloud VPN or Interconnect), an MTU mismatch can lead to packet fragmentation or dropped packets. To ensure seamless network traversal, you should configure matching MTU values across the network interfaces, or set your GCP VPC to use an MTU of **1500 bytes** during creation if your underlying connection fabric supports it.
+Applying a strict ownership restriction using `chmod 400` ensures that only the file owner can read the private key. This is a critical security step when configuring public-key infrastructure (PKI) access paths on a Bastion Host.
 
 ```
-+----------------------------+                 +----------------------------+
-| On-Premises Network        |                 | GCP VPC Network            |
-| MTU: 1500 Bytes            | === Cloud VPN =>| MTU: 1460 Bytes (Default)  |
-|                            |   (Mismatch)    | *Recommendation: Match MTU |
-+----------------------------+                 +----------------------------+
+[ Private Key File ] --- Permissions: 755 (Broad) ---> OpenSSH Engine REJECTS Execution
+[ Private Key File ] --- Permissions: 400 (Owner Only) -> OpenSSH Engine ACCEPTS Connection
 
 ```
 
